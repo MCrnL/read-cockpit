@@ -15,7 +15,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: MCrnL/cockpit-monitor
-          token: ${{ secrets.PRIVATE_REPO_PAT }}
+          token: ${{ secrets.REPO_PAT }}
           path: private-code
 
       - name: Configurar Python
