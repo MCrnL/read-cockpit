@@ -8,6 +8,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Baixa o código do repositório privado
       - name: Baixar código privado
         uses: actions/checkout@v4
         with:
@@ -15,31 +16,35 @@ jobs:
           token: ${{ secrets.REPO_PAT }}
           path: private-code
 
+      # Configura Python
       - name: Configurar Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
+      # Instala as dependências
       - name: Instalar dependências
         working-directory: private-code
         run: pip install -r requirements.txt
 
+      # Cria o firebasekey.json usando o Secret
       - name: Criar credencial do Firebase
         working-directory: private-code
         env:
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_CREDENTIALS_JSON }}
         run: |
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > firebasekey.json
 
+      # Valida se o Secret foi recebido e se o JSON é válido
       - name: Verificar credencial Firebase
         working-directory: private-code
         env:
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_CREDENTIALS_JSON }}
         run: |
           echo "Tamanho do secret: ${#FIREBASE_SERVICE_ACCOUNT}"
 
           if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
-            echo "ERRO: FIREBASE_SERVICE_ACCOUNT está vazio!"
+            echo "ERRO: FIREBASE_CREDENTIALS_JSON está vazio!"
             exit 1
           fi
 
@@ -47,6 +52,7 @@ jobs:
 
           python -c "import json; json.load(open('firebasekey.json')); print('JSON do Firebase válido')"
 
+      # Executa a sincronização
       - name: Rodar sincronização
         working-directory: private-code
         env:
@@ -54,6 +60,7 @@ jobs:
           COCKPIT_PASS: ${{ secrets.COCKPIT_PASS }}
         run: python cockpit_sync.py
 
+      # Remove a credencial ao final
       - name: Remover credencial
         if: always()
         working-directory: private-code
