@@ -1,16 +1,14 @@
 name: Sync Cockpit -> Firestore
 
 on:
-  workflow_dispatch: {}  # é isso que o cron-job.org vai chamar via API, a cada 5 min
+  workflow_dispatch: {}  # cron-job.org chama este workflow via API
 
 jobs:
   sync:
     runs-on: ubuntu-latest
+
     steps:
-      # Busca o código de verdade (cockpit_sync.py, requirements.txt) do
-      # repositório PRIVADO, usando um token com acesso só de leitura a ele.
-      # O conteúdo fica só no disco temporário deste runner - nunca é
-      # commitado nem exposto neste repositório público.
+      # Busca o código do repositório PRIVADO
       - name: Baixar código privado
         uses: actions/checkout@v4
         with:
@@ -18,19 +16,32 @@ jobs:
           token: ${{ secrets.REPO_PAT }}
           path: private-code
 
+      # Configura Python
       - name: Configurar Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
+      # Instala as dependências do projeto privado
       - name: Instalar dependências
         working-directory: private-code
         run: pip install -r requirements.txt
 
+      # Cria o firebasekey.json a partir do Secret
       - name: Criar credencial do Firebase
         working-directory: private-code
-        run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > firebasekey.json
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > firebasekey.json
 
+      # Confirma que o arquivo contém um JSON válido
+      - name: Validar credencial Firebase
+        working-directory: private-code
+        run: |
+          python -c "import json; json.load(open('firebasekey.json')); print('JSON do Firebase válido')"
+
+      # Executa a sincronização
       - name: Rodar sincronização
         working-directory: private-code
         env:
@@ -38,6 +49,7 @@ jobs:
           COCKPIT_PASS: ${{ secrets.COCKPIT_PASS }}
         run: python cockpit_sync.py
 
+      # Remove a credencial após a execução
       - name: Remover credencial (limpeza)
         if: always()
         working-directory: private-code
