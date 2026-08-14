@@ -1,0 +1,44 @@
+name: Sync Cockpit -> Firestore
+
+on:
+  workflow_dispatch: {}  # é isso que o cron-job.org vai chamar via API, a cada 5 min
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      # Busca o código de verdade (cockpit_sync.py, requirements.txt) do
+      # repositório PRIVADO, usando um token com acesso só de leitura a ele.
+      # O conteúdo fica só no disco temporário deste runner - nunca é
+      # commitado nem exposto neste repositório público.
+      - name: Baixar código privado
+        uses: actions/checkout@v4
+        with:
+          repository: MCrnL/cockpit-monitor
+          token: ${{ secrets.PRIVATE_REPO_PAT }}
+          path: private-code
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependências
+        working-directory: private-code
+        run: pip install -r requirements.txt
+
+      - name: Criar credencial do Firebase
+        working-directory: private-code
+        run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > firebasekey.json
+
+      - name: Rodar sincronização
+        working-directory: private-code
+        env:
+          COCKPIT_USER: ${{ secrets.COCKPIT_USER }}
+          COCKPIT_PASS: ${{ secrets.COCKPIT_PASS }}
+        run: python cockpit_sync.py
+
+      - name: Remover credencial (limpeza)
+        if: always()
+        working-directory: private-code
+        run: rm -f firebasekey.json
