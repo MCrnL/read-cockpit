@@ -1,16 +1,60 @@
-- name: Verificar credencial Firebase
-  working-directory: private-code
-  env:
-    FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-  run: |
-    echo "Tamanho do secret: ${#FIREBASE_SERVICE_ACCOUNT}"
-    if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
-      echo "ERRO: FIREBASE_SERVICE_ACCOUNT está vazio!"
-      exit 1
-    fi
+name: Sync Cockpit -> Firestore
 
-    printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > firebasekey.json
+on:
+  workflow_dispatch: {}
 
-    echo "Tamanho do arquivo: $(wc -c < firebasekey.json) bytes"
+jobs:
+  sync:
+    runs-on: ubuntu-latest
 
-    python -c "import json; json.load(open('firebasekey.json')); print('JSON do Firebase válido')"
+    steps:
+      - name: Baixar código privado
+        uses: actions/checkout@v4
+        with:
+          repository: MCrnL/cockpit-monitor
+          token: ${{ secrets.REPO_PAT }}
+          path: private-code
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependências
+        working-directory: private-code
+        run: pip install -r requirements.txt
+
+      - name: Criar credencial do Firebase
+        working-directory: private-code
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > firebasekey.json
+
+      - name: Verificar credencial Firebase
+        working-directory: private-code
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          echo "Tamanho do secret: ${#FIREBASE_SERVICE_ACCOUNT}"
+
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            echo "ERRO: FIREBASE_SERVICE_ACCOUNT está vazio!"
+            exit 1
+          fi
+
+          echo "Tamanho do arquivo: $(wc -c < firebasekey.json) bytes"
+
+          python -c "import json; json.load(open('firebasekey.json')); print('JSON do Firebase válido')"
+
+      - name: Rodar sincronização
+        working-directory: private-code
+        env:
+          COCKPIT_USER: ${{ secrets.COCKPIT_USER }}
+          COCKPIT_PASS: ${{ secrets.COCKPIT_PASS }}
+        run: python cockpit_sync.py
+
+      - name: Remover credencial
+        if: always()
+        working-directory: private-code
+        run: rm -f firebasekey.json
