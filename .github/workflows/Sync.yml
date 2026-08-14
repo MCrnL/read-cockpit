@@ -1,56 +1,16 @@
-name: Sync Cockpit -> Firestore
+- name: Verificar credencial Firebase
+  working-directory: private-code
+  env:
+    FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+  run: |
+    echo "Tamanho do secret: ${#FIREBASE_SERVICE_ACCOUNT}"
+    if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then
+      echo "ERRO: FIREBASE_SERVICE_ACCOUNT está vazio!"
+      exit 1
+    fi
 
-on:
-  workflow_dispatch: {}  # cron-job.org chama este workflow via API
+    printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > firebasekey.json
 
-jobs:
-  sync:
-    runs-on: ubuntu-latest
+    echo "Tamanho do arquivo: $(wc -c < firebasekey.json) bytes"
 
-    steps:
-      # Busca o código do repositório PRIVADO
-      - name: Baixar código privado
-        uses: actions/checkout@v4
-        with:
-          repository: MCrnL/cockpit-monitor
-          token: ${{ secrets.REPO_PAT }}
-          path: private-code
-
-      # Configura Python
-      - name: Configurar Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      # Instala as dependências do projeto privado
-      - name: Instalar dependências
-        working-directory: private-code
-        run: pip install -r requirements.txt
-
-      # Cria o firebasekey.json a partir do Secret
-      - name: Criar credencial do Firebase
-        working-directory: private-code
-        env:
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-        run: |
-          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > firebasekey.json
-
-      # Confirma que o arquivo contém um JSON válido
-      - name: Validar credencial Firebase
-        working-directory: private-code
-        run: |
-          python -c "import json; json.load(open('firebasekey.json')); print('JSON do Firebase válido')"
-
-      # Executa a sincronização
-      - name: Rodar sincronização
-        working-directory: private-code
-        env:
-          COCKPIT_USER: ${{ secrets.COCKPIT_USER }}
-          COCKPIT_PASS: ${{ secrets.COCKPIT_PASS }}
-        run: python cockpit_sync.py
-
-      # Remove a credencial após a execução
-      - name: Remover credencial (limpeza)
-        if: always()
-        working-directory: private-code
-        run: rm -f firebasekey.json
+    python -c "import json; json.load(open('firebasekey.json')); print('JSON do Firebase válido')"
