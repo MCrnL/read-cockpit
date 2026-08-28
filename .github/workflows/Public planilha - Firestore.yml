@@ -1,0 +1,61 @@
+name: Sincronizar Planilha UFV -> Firestore
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  sync-planilha:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Baixa o código do repositório privado onde está o script
+      - name: Baixar código privado
+        uses: actions/checkout@v4
+        with:
+          repository: MCrnL/cockpit-monitor
+          token: ${{ secrets.REPO_PAT }}
+          path: private-code
+
+      # 2. Configura Python
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # 3. Instala as dependências (incluindo as do Google Drive para evitar o erro)
+      - name: Instalar dependências
+        working-directory: private-code
+        run: |
+          pip install -r requirements.txt
+          pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib --break-system-packages
+
+      # 4. Cria a credencial do Firebase/Drive usando o Secret
+      - name: Criar credencial do Firebase/Drive
+        working-directory: private-code
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_CREDENTIALS_JSON }}
+        run: |
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > firebasekey.json
+
+      # 5. Verifica se a credencial foi criada corretamente (Opcional, mas recomendado)
+      - name: Verificar credencial
+        working-directory: private-code
+        run: |
+          if [ ! -s firebasekey.json ]; then
+            echo "ERRO: O arquivo firebasekey.json está vazio ou não foi criado!"
+            exit 1
+          fi
+          echo "Credencial criada com sucesso."
+
+      # 6. Roda o script de sincronização da planilha
+      - name: Rodar sincronização da Planilha
+        working-directory: private-code
+        run: |
+          python gerar_mapa_ufvs.py plantas_cockpit.txt saida.xlsx \
+            --drive-id 17PuBpW3eQxLwXF05gAU5IKDmWHgKIJjr \
+            --publicar firebasekey.json
+
+      # 7. Remove a credencial ao final da execução (mesmo se der erro antes)
+      - name: Remover credencial
+        if: always()
+        working-directory: private-code
+        run: rm -f firebasekey.json
