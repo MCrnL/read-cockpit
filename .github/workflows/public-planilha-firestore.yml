@@ -1,4 +1,4 @@
-name: Sincronizar Planilha UFV -> Firestore
+name: Sync Planilha UFV -> Firestore
 
 on:
   workflow_dispatch: {}
