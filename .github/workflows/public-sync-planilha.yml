@@ -21,7 +21,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      # 3. Instala as dependências (incluindo as do Google Drive para evitar o erro)
+      # 3. Instala as dependências (incluindo as do Google Drive)
       - name: Instalar dependências
         working-directory: private-code
         run: |
@@ -36,7 +36,7 @@ jobs:
         run: |
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > firebasekey.json
 
-      # 5. Verifica se a credencial foi criada corretamente (Opcional, mas recomendado)
+      # 5. Verifica se a credencial foi criada corretamente
       - name: Verificar credencial
         working-directory: private-code
         run: |
@@ -46,9 +46,12 @@ jobs:
           fi
           echo "Credencial criada com sucesso."
 
-      # 6. Roda o script de sincronização da planilha
+      # 6. Roda o script de sincronização da planilha (com as credenciais do Cockpit injetadas)
       - name: Rodar sincronização da Planilha
         working-directory: private-code
+        env:
+          COCKPIT_USER: ${{ secrets.COCKPIT_USER }}
+          COCKPIT_PASS: ${{ secrets.COCKPIT_PASS }}
         run: |
           python gerar_mapa_ufvs.py plantas_cockpit.txt saida.xlsx \
             --drive-id 17PuBpW3eQxLwXF05gAU5IKDmWHgKIJjr \
