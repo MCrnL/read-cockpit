@@ -1,0 +1,55 @@
+name: Sync EnjoySolar -> Firestore
+on:
+  workflow_dispatch: {}
+
+concurrency:
+  group: sync-enjoysolar
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      # Baixa o código do repositório privado
+      - name: Baixar código privado
+        uses: actions/checkout@v4
+        with:
+          repository: MCrnL/cockpit-monitor
+          token: ${{ secrets.REPO_PAT }}
+          path: private-code
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Instalar dependências
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pycryptodome firebase-admin
+
+      - name: Criar credencial do Firebase
+        working-directory: private-code
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_CREDENTIALS_JSON }}
+        run: |
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > firebasekey.json
+
+      - name: Verificar credencial Firebase
+        working-directory: private-code
+        run: |
+          echo "Tamanho do arquivo: $(wc -c < firebasekey.json) bytes"
+          python -c "import json; json.load(open('firebasekey.json')); print('JSON do Firebase válido')"
+
+      - name: Executar Scraper EnjoySolar
+        working-directory: private-code
+        env:
+          ENJOYSOLAR_USER: ${{ secrets.ENJOYSOLAR_USER }}
+          ENJOYSOLAR_PASS: ${{ secrets.ENJOYSOLAR_PASS }}
+        run: python -u enjoysolar_sync.py
+
+      - name: Remover credencial (limpeza)
+        if: always()
+        working-directory: private-code
+        run: rm -f firebasekey.json
