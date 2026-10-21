@@ -3,12 +3,14 @@ on:
   workflow_dispatch:
     inputs:
       modo:
-        description: "sync grava no Firestore; dry-run só simula"
+        description: "Escolha o modo de operacao"
         type: choice
         options:
           - sync
+          - sync-ignorar-strings
           - dry-run
-        default: sync
+          - dry-run-ignorar-strings
+        default: sync-ignorar-strings
 
 concurrency:
   group: sync-isolarcloud
@@ -19,7 +21,6 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     steps:
-      # Baixa o código do repositório privado (inclui isolarcloud_map.json)
       - name: Baixar código privado
         uses: actions/checkout@v4
         with:
@@ -56,6 +57,8 @@ jobs:
           MODO: ${{ github.event.inputs.modo || 'sync' }}
         run: |
           case "$MODO" in
+            sync-ignorar-strings) python isolarcloud.py --ignorar-strings ;;
+            dry-run-ignorar-strings) python isolarcloud.py --dry-run --ignorar-strings ;;
             dry-run) python isolarcloud.py --dry-run ;;
             *)       python isolarcloud.py ;;
           esac
