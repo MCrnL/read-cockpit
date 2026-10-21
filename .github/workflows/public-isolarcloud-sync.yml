@@ -1,0 +1,66 @@
+name: Sync iSolarCloud -> Firestore
+on:
+  workflow_dispatch:
+    inputs:
+      modo:
+        description: "sync grava no Firestore; dry-run só simula"
+        type: choice
+        options:
+          - sync
+          - dry-run
+        default: sync
+
+concurrency:
+  group: sync-isolarcloud
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      # Baixa o código do repositório privado (inclui isolarcloud_map.json)
+      - name: Baixar código privado
+        uses: actions/checkout@v4
+        with:
+          repository: MCrnL/cockpit-monitor
+          token: ${{ secrets.REPO_PAT }}
+          path: private-code
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependências
+        working-directory: private-code
+        run: pip install -r requirements.txt pycryptodome
+
+      - name: Criar credencial do Firebase
+        working-directory: private-code
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_CREDENTIALS_JSON }}
+        run: |
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > firebasekey.json
+          python -c "import json; json.load(open('firebasekey.json')); print('JSON do Firebase válido')"
+
+      - name: Rodar sincronização iSolarCloud
+        working-directory: private-code
+        env:
+          ISOLARCLOUD_APPKEY: ${{ secrets.ISOLARCLOUD_APPKEY }}
+          ISOLARCLOUD_SECRET: ${{ secrets.ISOLARCLOUD_SECRET }}
+          ISOLARCLOUD_USER: ${{ secrets.ISOLARCLOUD_USER }}
+          ISOLARCLOUD_PASS: ${{ secrets.ISOLARCLOUD_PASS }}
+          ISOLARCLOUD_RSA_PUBLIC: ${{ secrets.ISOLARCLOUD_RSA_PUBLIC }}
+          FIREBASE_CREDENTIALS_PATH: firebasekey.json
+          MODO: ${{ github.event.inputs.modo || 'sync' }}
+        run: |
+          case "$MODO" in
+            dry-run) python isolarcloud.py --dry-run ;;
+            *)       python isolarcloud.py ;;
+          esac
+
+      - name: Remover credencial
+        if: always()
+        working-directory: private-code
+        run: rm -f firebasekey.json
