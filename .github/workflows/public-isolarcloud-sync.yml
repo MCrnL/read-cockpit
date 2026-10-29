@@ -10,7 +10,7 @@ on:
           - sync-ignorar-strings
           - dry-run
           - dry-run-ignorar-strings
-        default: sync-ignorar-strings
+        default: sync
 
 concurrency:
   group: sync-isolarcloud
